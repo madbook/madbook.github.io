@@ -1,7 +1,5 @@
 "use strict";
 
-var _slicedToArray = function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { var _arr = []; for (var _iterator = arr[Symbol.iterator](), _step; !(_step = _iterator.next()).done;) { _arr.push(_step.value); if (i && _arr.length === i) break; } return _arr; } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } };
-
 var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc && desc.writable) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
 var _inherits = function (subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) subClass.__proto__ = superClass; };
@@ -11,25 +9,6 @@ var _createClass = (function () { function defineProperties(target, props) { for
 var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } };
 
 // build => babel -o simple-game-engine.js simple-game-engine.jsx
-
-if (window.Map.length === 0) {
-  (function () {
-    // hack to polyfill Safari's jank
-    var _trueMap = window.Map;
-    window.Map = function (init) {
-      var map = new _trueMap();
-      init.forEach(function (item) {
-        var _item = _slicedToArray(item, 2);
-
-        var key = _item[0];
-        var value = _item[1];
-
-        map.set(key, value);
-      });
-      return map;
-    };
-  })();
-}
 
 // utils
 function copy(from, to) {
@@ -49,46 +28,50 @@ function copy(from, to) {
 var KEYDOWN = 1;
 var KEYDOWN_PREV = 2;
 
-var keys = {};
+var keyboardKeys = {};
+var keyNames = new Map([["ARROWUP", "UP"], ["ARROWDOWN", "DOWN"], ["ARROWLEFT", "LEFT"], ["ARROWRIGHT", "RIGHT"]]);
 
 function getKeyName(keyCode, identifier) {
   if (identifier.slice(0, 2) === "U+") {
     return String.fromCharCode(keyCode);
-  } else {
-    return identifier.toUpperCase();
   }
+
+  identifier = identifier.toUpperCase();
+  var mappedIdentifier = keyNames.get(identifier);
+
+  return mappedIdentifier ? mappedIdentifier : identifier;
 }
 
 function stepKeys() {
-  for (var key in keys) {
+  for (var key in keyboardKeys) {
     if (isKeyDown(key)) {
-      keys[key] |= KEYDOWN_PREV;
+      keyboardKeys[key] |= KEYDOWN_PREV;
     } else {
-      keys[key] &= ~KEYDOWN_PREV;
+      keyboardKeys[key] &= ~KEYDOWN_PREV;
     }
   }
 }
 
 window.addEventListener("keydown", function (e) {
   var keyName = getKeyName(e.keyCode, e.keyIdentifier || e.key);
-  keys[keyName] |= KEYDOWN;
+  keyboardKeys[keyName] |= KEYDOWN;
 });
 
 window.addEventListener("keyup", function (e) {
   var keyName = getKeyName(e.keyCode, e.keyIdentifier || e.key);
-  keys[keyName] &= ~KEYDOWN;
+  keyboardKeys[keyName] &= ~KEYDOWN;
 });
 
 var isKeyDown = function (key) {
-  return keys[key] & KEYDOWN;
+  return keyboardKeys[key] & KEYDOWN;
 };
 
 var isKeyPressed = function (key) {
-  return keys[key] === KEYDOWN;
+  return keyboardKeys[key] === KEYDOWN;
 };
 
 var isKeyReleased = function (key) {
-  return keys[key] === KEYDOWN_PREV;
+  return keyboardKeys[key] === KEYDOWN_PREV;
 };
 
 // rendering logic

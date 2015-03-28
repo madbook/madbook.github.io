@@ -18,41 +18,51 @@ function copy(from, to) {
 const KEYDOWN = 1;
 const KEYDOWN_PREV = 2;
 
-let keys = {}
+let keyboardKeys = {}
+let keyNames = new Map([
+  ['ARROWUP', 'UP'],
+  ['ARROWDOWN', 'DOWN'],
+  ['ARROWLEFT', 'LEFT'],
+  ['ARROWRIGHT', 'RIGHT'],
+]);
+
 
 function getKeyName(keyCode, identifier) {
   if (identifier.slice(0, 2) === 'U+') {
     return String.fromCharCode(keyCode);
-  } else {
-    return identifier.toUpperCase();
   }
+
+  identifier = identifier.toUpperCase();
+  let mappedIdentifier = keyNames.get(identifier);
+  
+  return mappedIdentifier ? mappedIdentifier : identifier;
 }
 
 function stepKeys() {
-  for (let key in keys) {
+  for (let key in keyboardKeys) {
     if (isKeyDown(key)) {
-      keys[key] |= KEYDOWN_PREV;
+      keyboardKeys[key] |= KEYDOWN_PREV;
     } else {
-      keys[key] &= ~KEYDOWN_PREV;
+      keyboardKeys[key] &= ~KEYDOWN_PREV;
     }
   }
 }
 
 window.addEventListener('keydown', (e) => {
   let keyName = getKeyName(e.keyCode, e.keyIdentifier || e.key); 
-  keys[keyName] |= KEYDOWN;
+  keyboardKeys[keyName] |= KEYDOWN;
 });
 
 window.addEventListener('keyup', (e) => {
   let keyName = getKeyName(e.keyCode, e.keyIdentifier || e.key);
-  keys[keyName] &= ~KEYDOWN;
+  keyboardKeys[keyName] &= ~KEYDOWN;
 });
 
-let isKeyDown = (key) => keys[key] & KEYDOWN;
+let isKeyDown = (key) => keyboardKeys[key] & KEYDOWN;
 
-let isKeyPressed = (key) =>  keys[key] === KEYDOWN;
+let isKeyPressed = (key) =>  keyboardKeys[key] === KEYDOWN;
 
-let isKeyReleased = (key) => keys[key] === KEYDOWN_PREV;
+let isKeyReleased = (key) => keyboardKeys[key] === KEYDOWN_PREV;
 
 // rendering logic
 let canvas = document.createElement('canvas');
