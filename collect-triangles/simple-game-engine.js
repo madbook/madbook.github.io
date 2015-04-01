@@ -1,5 +1,7 @@
 "use strict";
 
+var _slicedToArray = function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { var _arr = []; for (var _iterator = arr[Symbol.iterator](), _step; !(_step = _iterator.next()).done;) { _arr.push(_step.value); if (i && _arr.length === i) break; } return _arr; } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } };
+
 var _get = function get(object, property, receiver) { var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc && desc.writable) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
 var _inherits = function (subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) subClass.__proto__ = superClass; };
@@ -9,6 +11,71 @@ var _createClass = (function () { function defineProperties(target, props) { for
 var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } };
 
 // build => babel -o simple-game-engine.js simple-game-engine.jsx
+
+var random = Math.random;
+var min = Math.min;
+var max = Math.max;
+var sqrt = Math.sqrt;
+var floor = Math.floor;
+var pow = Math.pow;
+var log2 = Math.log2;
+var PI = Math.PI;
+var abs = Math.abs;
+var atan2 = Math.atan2;
+
+var TAU = 2 * PI;
+var rand = function (range) {
+  return random() * range;
+};
+
+// vector math
+var VECTOR_ORIGIN = { x: 0, y: 0 };
+
+var Vector = {
+  create: function create(x, y) {
+    return { x: x, y: y };
+  },
+
+  length: function length(v) {
+    var x = v.x;
+    var y = v.y;
+
+    return Math.sqrt(x * x + y * y);
+  },
+
+  scale: function scale(v, s) {
+    return Vector.create(v.x * s, v.y * s);
+  },
+
+  normalize: function normalize(v) {
+    var l = Vector.length(v);
+    return l ? Vector.scale(v, 1 / l) : VECTOR_ORIGIN;
+  },
+
+  cross: function cross(a) {
+    var b = arguments[1] === undefined ? VECTOR_ORIGIN : arguments[1];
+
+    return Vector.create(a.y - b.y, b.x - a.x);
+  },
+
+  add: function add(a, b) {
+    return Vector.create(a.x + b.x, a.y + b.y);
+  },
+
+  subract: function subract(a, b) {
+    return Vector.add(a, Vector.scale(b, -1));
+  },
+
+  distance: function distance(a, b) {
+    return Vector.length(Vector.subtract(a, b));
+  },
+
+  dot: function dot(a, b) {
+    // 1 == same dir, 0 == perpendicular, -1 == opposite dir
+    return a.x * b.x + a.y * b.y;
+  } };
+
+var directionNames = new Map([["UP", Vector.create(0, -1)], ["DOWN", Vector.create(0, 1)], ["LEFT", Vector.create(-1, 0)], ["RIGHT", Vector.create(1, 0)], ["NONE", VECTOR_ORIGIN]]);
 
 // utils
 function copy(from, to) {
@@ -93,8 +160,6 @@ function clearCanvas() {
 }
 
 // audio logic
-window.AudioContext = window.AudioContext || window.webkitAudioContext;
-
 var audioCtx = new window.AudioContext();
 var audioGain = audioCtx.createGain();
 audioGain.connect(audioCtx.destination);
@@ -103,7 +168,22 @@ var getFrequency = function (n) {
   return pow(2, (n - 49) / 12) * 440;
 };
 
-var audioKeys = new Map([["A", 1], ["A#", 2], ["B@", 2], ["B", 3], ["C", 4], ["C#", 5], ["D@", 5], ["D", 6], ["D#", 7], ["E@", 7], ["E", 8], ["F", 9], ["F#", 10], ["G@", 10], ["G", 11], ["G#", 12], ["A@", 12]]);
+var audioKeys = [["A", 1], ["A#", 2], ["B@", 2], ["B", 3], ["C", 4], ["C#", 5], ["D@", 5], ["D", 6], ["D#", 7], ["E@", 7], ["E", 8], ["F", 9], ["F#", 10], ["G@", 10], ["G", 11], ["G#", 12], ["A@", 12]];
+
+var octaves = [0, 1, 2, 3, 4, 5, 6, 7];
+
+var noteList = [].concat.apply([], audioKeys.map(function (key) {
+  var _key = _slicedToArray(key, 2);
+
+  var key = _key[0];
+  var number = _key[1];
+
+  return octaves.map(function (octave) {
+    return [key + octave, getFrequency(number + octave * 12)];
+  });
+}));
+
+var noteFrequencies = new Map(noteList);
 
 var FULL = 1;
 var HALF = 1 / 2;
@@ -111,30 +191,53 @@ var QUARTER = 1 / 4;
 var EIGHTH = 1 / 8;
 var SIXTEENTH = 1 / 16;
 
-function playNote(key, octave, duration) {
-  var delay = arguments[3] === undefined ? 0 : arguments[3];
+function playNote(frequency, start, stop) {
+  var o = audioCtx.createOscillator();
+  o.type = "sawtooth";
+  o.frequency.value = frequency;
+  o.connect(audioGain);
+  o.start(start);
+  o.stop(stop);
+}
+
+function playAudio(notes) {
   var currentTime = audioCtx.currentTime;
+  var _iteratorNormalCompletion = true;
+  var _didIteratorError = false;
+  var _iteratorError = undefined;
 
-  currentTime += delay;
+  try {
 
-  function next() {
-    var key = arguments[0] === undefined ? "C" : arguments[0];
-    var octave = arguments[1] === undefined ? 4 : arguments[1];
-    var duration = arguments[2] === undefined ? 0.25 : arguments[2];
+    for (var _iterator = notes[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+      var note = _step.value;
 
-    var frequency = audioKeys.get(key) + octave * 12;
-    var o = audioCtx.createOscillator();
-    o.type = "sawtooth";
-    o.frequency.value = getFrequency(frequency);
-    o.connect(audioGain);
-    o.start(currentTime);
-    currentTime += duration;
-    o.stop(currentTime);
+      var _note = _slicedToArray(note, 2);
 
-    return next;
+      var key = _note[0];
+      var time = _note[1];
+
+      time = time || SIXTEENTH;
+      if (!key) {
+        currentTime += time;
+      } else {
+        var frequency = noteFrequencies.get(key);
+        playNote(frequency, currentTime, currentTime += time);
+      }
+    }
+  } catch (err) {
+    _didIteratorError = true;
+    _iteratorError = err;
+  } finally {
+    try {
+      if (!_iteratorNormalCompletion && _iterator["return"]) {
+        _iterator["return"]();
+      }
+    } finally {
+      if (_didIteratorError) {
+        throw _iteratorError;
+      }
+    }
   }
-
-  return next(key, octave, duration);
 }
 
 // entities
@@ -209,6 +312,44 @@ function stepEntities() {
   });
 }
 
+var collisionData = new WeakMap();
+
+function updateCollisionData(entity) {
+  var _entity$nextState = entity.nextState;
+  var x = _entity$nextState.x;
+  var y = _entity$nextState.y;
+  var size = _entity$nextState.size;
+
+  if (!size) {
+    return collisionData["delete"](entity);
+  }
+
+  var halfSize = size / 2;
+
+  collisionData.set(entity, {
+    x1: x - halfSize,
+    x2: x + halfSize,
+    y1: y - halfSize,
+    y2: y + halfSize });
+}
+
+function stepCollision() {
+  entities.forEach(function (entity) {
+    return updateCollisionData(entity);
+  });
+}
+
+function collides(a, b) {
+  a = collisionData.get(a);
+  b = collisionData.get(b);
+
+  if (a === b || !a || !b) {
+    return false;
+  }
+
+  return !(a.x1 > b.x2 || b.x1 > a.x2 || a.y1 > b.y2 || b.y1 > a.y2);
+}
+
 var Entity = (function () {
   function Entity() {
     var initialState = arguments[0] === undefined ? {} : arguments[0];
@@ -253,6 +394,7 @@ function loop() {
   iterEntities.forEach(function (entity) {
     return entity.step();
   });
+  stepCollision();
   iterEntities.forEach(function (entity) {
     return entity.check();
   });
@@ -310,42 +452,9 @@ canvas.style.width = "" + WIDTH + "px";
 canvas.style.height = "" + HEIGHT + "px";
 ctx.scale(SCALE, SCALE);
 
-var random = Math.random;
-var min = Math.min;
-var max = Math.max;
-var sqrt = Math.sqrt;
-var floor = Math.floor;
-var pow = Math.pow;
-var log2 = Math.log2;
-var PI = Math.PI;
-var abs = Math.abs;
-
-var TAU = 2 * PI;
-var rand = function (range) {
-  return random() * range;
-};
-
 function moveEntity(entity, x, y) {
   entity.nextState.x += x;
   entity.nextState.y += y;
-}
-
-function collides(a, b) {
-  if (a === b || !a.nextState.size || !b.nextState.size) {
-    return false;
-  }
-
-  var ax1 = a.nextState.x - a.nextState.size / 2;
-  var ax2 = ax1 + a.nextState.size;
-  var ay1 = a.nextState.y - a.nextState.size / 2;
-  var ay2 = ay1 + a.nextState.size;
-
-  var bx1 = b.nextState.x - b.nextState.size / 2;
-  var bx2 = bx1 + b.nextState.size;
-  var by1 = b.nextState.y - b.nextState.size / 2;
-  var by2 = by1 + b.nextState.size;
-
-  return !(ax1 > bx2 || bx1 > ax2 || ay1 > by2 || by1 > ay2);
 }
 
 function drawEntity(entity) {
@@ -360,6 +469,12 @@ function constrain(entity) {
   entity.nextState.x = min(WIDTH, max(0, entity.nextState.x));
   entity.nextState.y = min(HEIGHT, max(0, entity.nextState.y));
 }
+
+var hpUpSound = [["C4"], ["F4"], ["G4"], ["E4"]];
+var collectSound = [["C4"], ["F4"]];
+var deathSound = [["F1", EIGHTH], ["C1", EIGHTH]];
+var hitSound = [["D0", EIGHTH]];
+var attackSound = [["C6"], ["G6"], ["G5"]];
 
 var Player = (function (_Entity) {
   function Player() {
@@ -379,12 +494,12 @@ var Player = (function (_Entity) {
           x: WIDTH / 2,
           y: HEIGHT / 2,
           z: 10,
-          speedX: 0,
-          speedY: 0,
+          speed: 0,
           size: 8,
           color: "red",
           level: 1,
-          invulnerableSteps: 0 };
+          invulnerableSteps: 0,
+          dir: Vector.create(0, 0) };
       }
     },
     enter: {
@@ -414,46 +529,75 @@ var Player = (function (_Entity) {
           this.nextState.invulnerableSteps -= 1;
         }
 
-        var _nextState = this.nextState;
-        var speedX = _nextState.speedX;
-        var speedY = _nextState.speedY;
+        var speed = this.nextState.speed;
 
-        var x = 0;
-        var y = 0;
+        var dir = Vector.create(0, 0);
 
-        if (isKeyDown("RIGHT")) {
-          x += 1;
-        }
-        if (isKeyDown("LEFT")) {
-          x -= 1;
-        }
-        if (isKeyDown("UP")) {
-          y -= 1;
-        }
-        if (isKeyDown("DOWN")) {
-          y += 1;
+        var _iteratorNormalCompletion = true;
+        var _didIteratorError = false;
+        var _iteratorError = undefined;
+
+        try {
+          for (var _iterator = ["UP", "DOWN", "LEFT", "RIGHT"][Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+            var key = _step.value;
+
+            if (isKeyDown(key)) {
+              var directionVector = directionNames.get(key);
+              dir = Vector.add(dir, directionVector);
+            }
+          }
+        } catch (err) {
+          _didIteratorError = true;
+          _iteratorError = err;
+        } finally {
+          try {
+            if (!_iteratorNormalCompletion && _iterator["return"]) {
+              _iterator["return"]();
+            }
+          } finally {
+            if (_didIteratorError) {
+              throw _iteratorError;
+            }
+          }
         }
 
-        if (!x && speedX) {
-          x += speedX > 0 ? -1 : 1;
+        dir = Vector.normalize(dir);
+
+        var l = Vector.length(dir);
+        speed = min(5, max(0, speed + (l ? 1 : -1)));
+        this.nextState.speed = speed;
+
+        var move = Vector.scale(dir, speed);
+        moveEntity(this, move.x, move.y);
+
+        if (l) {
+          this.nextState.dir = dir;
         }
 
-        if (!y && speedY) {
-          y += speedY > 0 ? -1 : 1;
+        var hp = this.hp;
+
+        if (isKeyPressed("X") && hp >= 2) {
+          var _state = this.state;
+          var _dir = _state.dir;
+          var size = _state.size;
+
+          var offset = Vector.scale(_dir, size + 5 + this.state.speed);
+          var point = Vector.add(this.state, offset);
+          if (hp >= 3) {
+            _dir = Vector.scale(_dir, hp * 2);
+          }
+          point.dir = _dir;
+          playAudio(attackSound);
+          addEntity(new PlayerAttack(point));
         }
-
-        this.nextState.speedX = min(5, max(-5, speedX + x));
-        this.nextState.speedY = min(5, max(-5, speedY + y));
-
-        moveEntity(this, speedX, speedY);
       }
     },
     check: {
       value: function check() {
-        var _this = this;
+        var _this10 = this;
 
         var collisions = entities.filter(function (entity) {
-          return collides(_this, entity);
+          return collides(_this10, entity);
         });
 
         if (!collisions.length) {
@@ -485,9 +629,9 @@ var Player = (function (_Entity) {
               }
 
               if (this.hp > hp) {
-                playNote("C", 4, SIXTEENTH)("F", 4, SIXTEENTH)("G", 4, SIXTEENTH)("E", 4, SIXTEENTH);
+                playAudio(hpUpSound);
               } else {
-                playNote("C", 4, SIXTEENTH)("F", 4, SIXTEENTH);
+                playAudio(collectSound);
               }
 
               this.nextState.invulnerableSteps += 15;
@@ -516,7 +660,7 @@ var Player = (function (_Entity) {
                     color: "red" }));
                 }
 
-                playNote("F", 1, EIGHTH)("C", 1, EIGHTH);
+                playAudio(deathSound);
 
                 deleteEntity(this);
                 deleteEntity(collision);
@@ -527,13 +671,14 @@ var Player = (function (_Entity) {
 
                 return;
               } else {
-                playNote("D", 0, EIGHTH);
+                playAudio(hitSound);
 
                 collision.replace();
               }
             } else if (collision instanceof Block) {
               this.nextState.x = this.state.x;
               this.nextState.y = this.state.y;
+              updateCollisionData(this);
 
               if (collides(this, collision)) {
                 var _state = this.state;
@@ -570,8 +715,7 @@ var Player = (function (_Entity) {
                 this.nextState.y = y;
               }
 
-              this.nextState.speedX = 0;
-              this.nextState.speedY = 0;
+              this.nextState.speed = 0;
             }
           }
         } catch (err) {
@@ -654,10 +798,10 @@ var Collectible = (function (_Entity2) {
     },
     check: {
       value: function check() {
-        var _this = this;
+        var _this10 = this;
 
         var collisions = entities.filter(function (entity) {
-          return collides(_this, entity);
+          return collides(_this10, entity);
         });
         constrain(this);
 
@@ -697,10 +841,10 @@ var Collectible = (function (_Entity2) {
 })(Entity);
 
 var Pellet = (function (_Collectible) {
-  function Pellet() {
+  function Pellet(state) {
     _classCallCheck(this, Pellet);
 
-    _get(Object.getPrototypeOf(Pellet.prototype), "constructor", this).call(this, { color: "green" });
+    _get(Object.getPrototypeOf(Pellet.prototype), "constructor", this).call(this, copy(state, { color: "green" }));
   }
 
   _inherits(Pellet, _Collectible);
@@ -746,6 +890,12 @@ var Bomb = (function (_Collectible2) {
         ctx.arc(0, 0, this.state.size / 2, 0, TAU);
         ctx.closePath();
         ctx.fill();
+      }
+    },
+    destroy: {
+      value: function destroy() {
+        _get(Object.getPrototypeOf(Bomb.prototype), "destroy", this).call(this);
+        addEntity(new BombAnimateOut({ x: this.state.x, y: this.state.y }));
       }
     }
   });
@@ -832,6 +982,75 @@ var BombAnimateIn = (function (_StaticEntity) {
   return BombAnimateIn;
 })(StaticEntity);
 
+var BombAnimateOut = (function (_BombAnimateIn) {
+  function BombAnimateOut(state) {
+    _classCallCheck(this, BombAnimateOut);
+
+    _get(Object.getPrototypeOf(BombAnimateOut.prototype), "constructor", this).call(this, copy(state, {
+      x: rand(WIDTH),
+      y: rand(HEIGHT),
+      size: 5,
+      stepsLeft: 10,
+      color: "yellow",
+      targetSize: 50 }));
+    var _state = this.state;
+    var size = _state.size;
+    var targetSize = _state.targetSize;
+    var stepsLeft = _state.stepsLeft;
+
+    this.stepSize = (targetSize - size) / stepsLeft;
+  }
+
+  _inherits(BombAnimateOut, _BombAnimateIn);
+
+  _createClass(BombAnimateOut, {
+    step: {
+      value: function step() {
+        this.nextState.stepsLeft -= 1;
+
+        if (!this.nextState.stepsLeft) {
+          deleteEntity(this);
+          return;
+        }
+
+        if (this.nextState.size < this.state.targetSize) {
+          this.nextState.size += this.stepSize;
+        }
+      }
+    },
+    check: {
+      value: function check() {
+        var _this10 = this;
+
+        entities.forEach(function (entity) {
+          if (!collides(_this10, entity)) {
+            return;
+          }
+
+          if (entity instanceof Bomb) {
+            entity.destroy();
+            playAudio(deathSound);
+          }
+        });
+      }
+    },
+    draw: {
+      value: function draw() {
+        ctx.fillStyle = this.state.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.state.size, 0, TAU);
+        ctx.closePath();
+        ctx.fill();
+      }
+    },
+    leave: {
+      value: function leave() {}
+    }
+  });
+
+  return BombAnimateOut;
+})(BombAnimateIn);
+
 var Particle = (function (_StaticEntity2) {
   function Particle(state) {
     _classCallCheck(this, Particle);
@@ -841,7 +1060,8 @@ var Particle = (function (_StaticEntity2) {
       dirY: rand(10) - 5,
       stepsLeft: 10,
       size: 2,
-      color: "grey" });
+      color: "grey",
+      z: 100 });
     _get(Object.getPrototypeOf(Particle.prototype), "constructor", this).call(this, state);
   }
 
@@ -865,6 +1085,55 @@ var Particle = (function (_StaticEntity2) {
 
   return Particle;
 })(StaticEntity);
+
+var PlayerAttack = (function (_Particle) {
+  function PlayerAttack(state) {
+    _classCallCheck(this, PlayerAttack);
+
+    _get(Object.getPrototypeOf(PlayerAttack.prototype), "constructor", this).call(this, copy(state, {
+      dirX: state.dir.x,
+      dirY: state.dir.y,
+      size: 10,
+      stepsLeft: 5,
+      color: "silver" }));
+  }
+
+  _inherits(PlayerAttack, _Particle);
+
+  _createClass(PlayerAttack, {
+    check: {
+      value: function check() {
+        var _this10 = this;
+
+        entities.forEach(function (entity) {
+          if (!collides(_this10, entity)) {
+            return;
+          }
+
+          if (entity instanceof Bomb) {
+            entity.destroy();
+            playAudio(deathSound);
+          }
+        });
+      }
+    },
+    draw: {
+      value: function draw() {
+        var dir = this.state.dir;
+
+        var PI2 = PI / 2;
+        var angle = atan2(-dir.x, dir.y) + PI2;
+        ctx.fillStyle = this.state.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.state.size, angle - PI2, angle + PI2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  });
+
+  return PlayerAttack;
+})(Particle);
 
 var Block = (function (_StaticEntity3) {
   function Block() {
@@ -1088,7 +1357,8 @@ startScene.draw = function () {
   ctx.fillText("collect the green triangles!", x, y);
   ctx.font = "14px Georgia";
   ctx.fillText("↑←↓→ to move", x, y += 40);
-  ctx.fillText("press x to start", x, y += 20);
+  ctx.fillText("x to attack", x, y += 20);
+  ctx.fillText("press x to start", x, y += 40);
 };
 
 var scoreScene = new Scene();

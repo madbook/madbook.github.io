@@ -1,5 +1,62 @@
 // build => babel -o simple-game-engine.js simple-game-engine.jsx
 
+const {random, min, max, sqrt, floor, pow, log2, PI, abs, atan2} = Math;
+const TAU = 2 * PI;
+const rand = (range) => random() * range;
+
+// vector math 
+const VECTOR_ORIGIN = {x: 0, y: 0};
+
+const Vector = {
+  create(x, y) { 
+    return {x, y};
+  },
+  
+  length(v) {
+    let {x, y} = v;
+    return Math.sqrt(x * x + y * y);
+  },
+
+  scale(v, s) {
+    return Vector.create(v.x * s, v.y * s);
+  },
+
+  normalize(v) {
+    let l = Vector.length(v);
+    return l ? Vector.scale(v, 1 / l) : VECTOR_ORIGIN;
+  },
+
+  cross(a, b=VECTOR_ORIGIN) {
+    return Vector.create(a.y - b.y, b.x - a.x);
+  },
+
+  add(a, b) {
+    return Vector.create(a.x + b.x, a.y + b.y);
+  },
+
+  subract(a, b) {
+    return Vector.add(a, Vector.scale(b, -1));
+  },
+
+  distance(a, b) {
+    return Vector.length(Vector.subtract(a, b));
+  },
+
+  dot(a, b) {
+    // 1 == same dir, 0 == perpendicular, -1 == opposite dir
+    return a.x * b.x + a.y * b.y;
+  },
+}
+
+const directionNames = new Map([
+  ['UP', Vector.create(0, -1)],
+  ['DOWN', Vector.create(0, 1)],
+  ['LEFT', Vector.create(-1, 0)],
+  ['RIGHT', Vector.create(1, 0)],
+  ['NONE', VECTOR_ORIGIN],
+]);
+
+
 // utils
 function copy(from, to) {
   for (let key in from) {
@@ -80,19 +137,28 @@ function clearCanvas() {
 }
 
 // audio logic
-window.AudioContext = window.AudioContext || window.webkitAudioContext;
-
 let audioCtx = new window.AudioContext();
 let audioGain = audioCtx.createGain();
 audioGain.connect(audioCtx.destination);
 
 let getFrequency = (n) => pow(2, (n - 49) / 12) * 440;
 
-const audioKeys = new Map([
+const audioKeys = [
   ['A', 1], ['A#', 2], ['B@', 2], ['B', 3], ['C', 4], ['C#', 5], ['D@', 5],
   ['D', 6], ['D#', 7], ['E@', 7], ['E', 8], ['F', 9], ['F#', 10], ['G@', 10],
   ['G', 11], ['G#', 12], ['A@', 12],
-]);
+];
+
+const octaves = [0, 1, 2, 3, 4, 5, 6, 7];
+
+let noteList = [].concat.apply([], audioKeys.map(key => {
+  let [key, number] = key;
+  return octaves.map(octave => {
+    return [key + octave, getFrequency(number + octave * 12)];
+  });
+}));
+
+const noteFrequencies = new Map(noteList);
 
 const FULL = 1;
 const HALF = 1 / 2;
@@ -100,24 +166,28 @@ const QUARTER = 1 / 4;
 const EIGHTH = 1 / 8;
 const SIXTEENTH = 1 / 16;
 
-function playNote(key, octave, duration, delay=0) {
+function playNote(frequency, start, stop) {
+  let o = audioCtx.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.value = frequency;
+  o.connect(audioGain);
+  o.start(start);
+  o.stop(stop);
+}
+
+function playAudio(notes) {
   let {currentTime} = audioCtx;
-  currentTime += delay;
-  
-  function next(key='C', octave=4, duration=0.25) {
-    let frequency = audioKeys.get(key) + (octave * 12);
-    let o = audioCtx.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.value = getFrequency(frequency);
-    o.connect(audioGain);
-    o.start(currentTime);
-    currentTime += duration;
-    o.stop(currentTime);
 
-    return next;
+  for (let note of notes) {
+    let [key, time] = note;
+    time = time || SIXTEENTH;
+    if (!key) {
+      currentTime += time;
+    } else {
+      let frequency = noteFrequencies.get(key);
+      playNote(frequency, currentTime, currentTime += time);
+    }
   }
-
-  return next(key, octave, duration);
 }
 
 // entities
@@ -163,6 +233,40 @@ function stepEntities() {
   entities.sort((a, b) => a.state.z - b.state.z);
 }
 
+let collisionData = new WeakMap();
+
+function updateCollisionData(entity) {
+  let {x, y, size} = entity.nextState;
+  
+  if (!size) {
+    return collisionData.delete(entity);
+  }
+
+  let halfSize = size / 2;
+
+  collisionData.set(entity, {
+    x1: x - halfSize,
+    x2: x + halfSize,
+    y1: y - halfSize,
+    y2: y + halfSize,
+  });
+}
+
+function stepCollision() {
+  entities.forEach(entity => updateCollisionData(entity));
+}
+
+function collides(a, b) {
+  a = collisionData.get(a);
+  b = collisionData.get(b);
+  
+  if (a === b || !a || !b) {
+    return false;
+  }
+
+  return !(a.x1 > b.x2 || b.x1 > a.x2 || a.y1 > b.y2 || b.y1 > a.y2);
+}
+
 class Entity {
   constructor(initialState={}) {
     this.uid = getUid();
@@ -185,9 +289,11 @@ class Entity {
   leave() {}
 }
 
+
 function loop() {
   let iterEntities = entities.slice();
   iterEntities.forEach(entity => entity.step());
+  stepCollision();
   iterEntities.forEach(entity => entity.check());
   iterEntities.forEach(entity => entity.update());
   stepEntities();
@@ -235,31 +341,9 @@ canvas.style.width = `${WIDTH}px`;
 canvas.style.height = `${HEIGHT}px`;
 ctx.scale(SCALE, SCALE);
 
-const {random, min, max, sqrt, floor, pow, log2, PI, abs} = Math;
-const TAU = 2 * PI;
-const rand = (range) => random() * range;
-
 function moveEntity(entity, x, y) {
   entity.nextState.x += x;
   entity.nextState.y += y;
-}
-
-function collides(a, b) {
-  if (a === b || !a.nextState.size || !b.nextState.size) {
-    return false;
-  }
-
-  let ax1 = a.nextState.x - a.nextState.size / 2;
-  let ax2 = ax1 + a.nextState.size;
-  let ay1 = a.nextState.y - a.nextState.size / 2;
-  let ay2 = ay1 + a.nextState.size;
-
-  let bx1 = b.nextState.x - b.nextState.size / 2;
-  let bx2 = bx1 + b.nextState.size;
-  let by1 = b.nextState.y - b.nextState.size / 2;
-  let by2 = by1 + b.nextState.size;
-
-  return !(ax1 > bx2 || bx1 > ax2 || ay1 > by2 || by1 > ay2);
 }
 
 function drawEntity(entity) {
@@ -274,18 +358,24 @@ function constrain(entity) {
   entity.nextState.y = min(HEIGHT, max(0, entity.nextState.y));
 }
 
+let hpUpSound = [['C4'], ['F4'], ['G4'], ['E4']];
+let collectSound = [['C4'], ['F4']];
+let deathSound = [['F1', EIGHTH], ['C1', EIGHTH]];
+let hitSound = [['D0', EIGHTH]];
+let attackSound = [['C6'], ['G6'], ['G5']];
+
 class Player extends Entity {
   get initialState() {
     return {
       x: WIDTH / 2,
       y: HEIGHT / 2,
       z: 10,
-      speedX: 0,
-      speedY: 0,
+      speed: 0,
       size: 8,
       color: 'red',
       level: 1,
       invulnerableSteps: 0,
+      dir: Vector.create(0, 0),
     };
   }
 
@@ -312,35 +402,42 @@ class Player extends Entity {
       this.nextState.invulnerableSteps -= 1;
     }
 
-    let {speedX, speedY} = this.nextState;
-    let x = 0;
-    let y = 0;
+    let {speed} = this.nextState;
+    let dir = Vector.create(0, 0);
 
-    if (isKeyDown('RIGHT')) {
-      x += 1;
-    }
-    if (isKeyDown('LEFT')) {
-      x -= 1;
-    }
-    if (isKeyDown('UP')) {
-      y -= 1;
-    }
-    if (isKeyDown('DOWN')) {
-      y += 1;
+    for (let key of ['UP', 'DOWN', 'LEFT', 'RIGHT']) {
+      if (isKeyDown(key)) {
+        let directionVector = directionNames.get(key);
+        dir = Vector.add(dir, directionVector);
+      }
     }
 
-    if (!x && speedX) {
-      x += speedX > 0 ? -1 : 1;
+    dir = Vector.normalize(dir);
+
+    let l = Vector.length(dir);
+    speed = min(5, max(0, speed + (l ? 1 : -1)));
+    this.nextState.speed = speed;
+    
+    let move = Vector.scale(dir, speed);
+    moveEntity(this, move.x, move.y);
+    
+    if (l) {
+      this.nextState.dir = dir;
     }
 
-    if (!y && speedY) {
-      y += speedY > 0 ? -1 : 1;
+    let hp = this.hp;
+
+    if (isKeyPressed('X') && hp >= 2) {
+      let {dir, size} = this.state;
+      let offset = Vector.scale(dir, size + 5 + this.state.speed);
+      let point = Vector.add(this.state, offset);
+      if (hp >= 3) {
+        dir = Vector.scale(dir, hp * 2);
+      }
+      point.dir = dir;
+      playAudio(attackSound);
+      addEntity(new PlayerAttack(point));
     }
-
-    this.nextState.speedX = min(5, max(-5, speedX + x));
-    this.nextState.speedY = min(5, max(-5, speedY + y));
-
-    moveEntity(this, speedX, speedY);
   }
 
   check() {
@@ -368,13 +465,9 @@ class Player extends Entity {
         }
 
         if (this.hp > hp) {
-          playNote('C', 4, SIXTEENTH)
-                  ('F', 4, SIXTEENTH)
-                  ('G', 4, SIXTEENTH)
-                  ('E', 4, SIXTEENTH);
+          playAudio(hpUpSound);
         } else {
-          playNote('C', 4, SIXTEENTH)
-                  ('F', 4, SIXTEENTH);
+          playAudio(collectSound);
         }
 
         this.nextState.invulnerableSteps += 15;
@@ -402,8 +495,7 @@ class Player extends Entity {
             }));
           }
 
-          playNote('F', 1, EIGHTH)
-                  ('C', 1, EIGHTH);
+          playAudio(deathSound);
           
           deleteEntity(this);
           deleteEntity(collision);
@@ -414,14 +506,15 @@ class Player extends Entity {
 
           return;
         } else {
-          playNote('D', 0, EIGHTH);
+          playAudio(hitSound)
 
           collision.replace();
         }
       } else if (collision instanceof Block) {
         this.nextState.x = this.state.x;
         this.nextState.y = this.state.y;
-        
+        updateCollisionData(this);
+
         if (collides(this, collision)) {
           let {x, y, size} = this.state;
           let h = size / 2;
@@ -449,8 +542,7 @@ class Player extends Entity {
           this.nextState.y = y;
         }
 
-        this.nextState.speedX = 0;
-        this.nextState.speedY = 0;
+        this.nextState.speed = 0;
       }
     }
   }
@@ -521,8 +613,8 @@ class Collectible extends Entity {
 }
 
 class Pellet extends Collectible {
-  constructor() {
-    super({ color: 'green'});
+  constructor(state) {
+    super(copy(state, { color: 'green'}));
   }
 
   draw() {
@@ -549,6 +641,11 @@ class Bomb extends Collectible {
     ctx.arc(0, 0, this.state.size / 2, 0, TAU);
     ctx.closePath();
     ctx.fill();
+  }
+
+  destroy() {
+    super.destroy();
+    addEntity(new BombAnimateOut({x: this.state.x, y: this.state.y}));
   }
 }
 
@@ -608,6 +705,59 @@ class BombAnimateIn extends StaticEntity {
   }
 }
 
+class BombAnimateOut extends BombAnimateIn {
+  constructor(state) {
+    super(copy(state, {
+      x: rand(WIDTH),
+      y: rand(HEIGHT),
+      size: 5,
+      stepsLeft: 10,
+      color: 'yellow',
+      targetSize: 50,
+    }));
+    let {size, targetSize, stepsLeft} = this.state;
+
+    this.stepSize = (targetSize - size) / stepsLeft;
+  }
+
+  step() {
+    this.nextState.stepsLeft -= 1;
+
+    if (!this.nextState.stepsLeft) {
+      deleteEntity(this);
+      return;
+    }
+
+    if (this.nextState.size < this.state.targetSize) {
+      this.nextState.size += this.stepSize;
+    }
+  }
+
+  check() {
+    entities.forEach(entity => {
+      if (!collides(this, entity)) {
+        return;
+      }
+
+      if (entity instanceof Bomb) {
+        entity.destroy();
+        playAudio(deathSound);
+      }
+    });
+  }
+
+  draw() {
+    ctx.fillStyle = this.state.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.state.size, 0, TAU);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  leave() {
+  }
+}
+
 class Particle extends StaticEntity {
   constructor(state) {
     state = copy(state, {
@@ -616,6 +766,7 @@ class Particle extends StaticEntity {
       stepsLeft: 10,
       size: 2,
       color: 'grey',
+      z: 100,
     });
     super(state);
   }
@@ -630,6 +781,42 @@ class Particle extends StaticEntity {
 
     this.nextState.x += this.state.dirX;
     this.nextState.y += this.state.dirY;
+  }
+}
+
+class PlayerAttack extends Particle {
+  constructor(state) {
+    super(copy(state, {
+      dirX: state.dir.x,
+      dirY: state.dir.y,
+      size: 10,
+      stepsLeft: 5,
+      color: 'silver',
+    }));
+  }
+
+  check() {
+    entities.forEach(entity => {
+      if (!collides(this, entity)) {
+        return;
+      }
+
+      if (entity instanceof Bomb) {
+        entity.destroy();
+        playAudio(deathSound);
+      }
+    })
+  }
+
+  draw() {
+    let {dir} = this.state;
+    let PI2 = PI / 2;
+    let angle = atan2(-dir.x, dir.y) + PI2;
+    ctx.fillStyle = this.state.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.state.size, angle - PI2, angle + PI2);
+    ctx.closePath();
+    ctx.fill();
   }
 }
 
@@ -807,7 +994,8 @@ startScene.draw = function() {
   ctx.fillText(`collect the green triangles!`, x, y);
   ctx.font = '14px Georgia';
   ctx.fillText(`↑←↓→ to move`, x, y += 40);
-  ctx.fillText(`press x to start`, x, y += 20);
+  ctx.fillText(`x to attack`, x, y += 20);
+  ctx.fillText(`press x to start`, x, y += 40);
 }
 
 let scoreScene = new Scene();
