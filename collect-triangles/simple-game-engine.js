@@ -12,6 +12,8 @@ var _classCallCheck = function (instance, Constructor) { if (!(instance instance
 
 // build => babel -o simple-game-engine.js simple-game-engine.jsx
 
+var gameContainer = document.getElementById("game-container");
+
 var random = Math.random;
 var min = Math.min;
 var max = Math.max;
@@ -140,6 +142,59 @@ var isKeyPressed = function (key) {
 var isKeyReleased = function (key) {
   return keyboardKeys[key] === KEYDOWN_PREV;
 };
+
+// mouse logics
+var cursor = {
+  x: 0,
+  y: 0,
+  ACTIVE: 0 };
+
+var isCursorDown = function () {
+  return cursor.ACTIVE & KEYDOWN;
+};
+
+var isCursorPressed = function () {
+  return cursor.ACTIVE === KEYDOWN;
+};
+
+var isCursorReleased = function () {
+  return cursor.ACTIVE === KEYDOWN_PREV;
+};
+
+var mouseEvents = new Map([["down", "mousedown"], ["up", "mouseup"], ["move", "mousemove"], ["cancel", "mouseleave"]]);
+
+var touchEvents = new Map([["down", "touchstart"], ["up", "touchend"], ["move", "touchmove"], ["cancel", "touchcancel"]]);
+
+var cursorEvents = "ontouchstart" in window ? touchEvents : mouseEvents;
+
+function stepCursor() {
+  if (isCursorDown()) {
+    cursor.ACTIVE |= KEYDOWN_PREV;
+  } else {
+    cursor.ACTIVE &= ~KEYDOWN_PREV;
+  }
+}
+
+gameContainer.addEventListener(cursorEvents.get("down"), function (e) {
+  cursor.ACTIVE |= KEYDOWN;
+  cursor.x = e.layerX;
+  cursor.y = e.layerY;
+});
+
+gameContainer.addEventListener(cursorEvents.get("up"), function (e) {
+  cursor.ACTIVE &= ~KEYDOWN;
+  cursor.x = e.layerX;
+  cursor.y = e.layerY;
+});
+
+gameContainer.addEventListener(cursorEvents.get("move"), function (e) {
+  cursor.x = e.layerX;
+  cursor.y = e.layerY;
+});
+
+gameContainer.addEventListener(cursorEvents.get("cancel"), function (e) {
+  cursor.ACTIVE &= ~KEYDOWN;
+});
 
 // rendering logic
 var canvas = document.createElement("canvas");
@@ -404,6 +459,7 @@ function loop() {
   stepEntities();
 
   stepKeys();
+  stepCursor();
 
   clearCanvas();
   entities.forEach(function (entity) {
@@ -414,7 +470,7 @@ function loop() {
 }
 
 function start() {
-  document.body.appendChild(canvas);
+  gameContainer.appendChild(canvas);
   loop();
 }
 
@@ -576,11 +632,10 @@ var Player = (function (_Entity) {
 
         var hp = this.hp;
 
-        if (isKeyPressed("X") && hp >= 2) {
-          var _state = this.state;
-          var _dir = _state.dir;
-          var size = _state.size;
+        if (isCursorPressed() && hp >= 2) {
+          var size = this.state.size;
 
+          var _dir = Vector.normalize(Vector.subract(cursor, { x: WIDTH / 2, y: HEIGHT / 2 }, cursor));
           var offset = Vector.scale(_dir, size + 5 + this.state.speed);
           var point = Vector.add(this.state, offset);
           if (hp >= 3) {
