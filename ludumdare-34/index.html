@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Ludum Dare 34</title>
+        <link rel="stylesheet" href="game.css">
+        <meta name=viewport content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+    </head>
+    <body>
+        <main id="game">
+            <div id="home-screen" class="screen active">
+                <header>
+                    <h1>Welcome to oDroid</h1>
+                    <div class="notification-icon" style="background-image: url(mascot-happy.png)"></div>
+                    <div>a game by u/madlee</div>
+                    <div>for Ludum Dare 34</div>
+                    <small>click / touch to begin</small>
+                </header>
+            </div>
+        </main>
+
+        <template id="screen-template">
+            <div class="screen hidden">
+                <header>
+                    <h2 class="screen-title">Monday</h2>
+                </header>
+                <div class="installed-app-icons">
+                </div>
+                <div class="notification-list">
+                </div>
+            </div>
+        </template>
+
+        <template id="prompt-template">
+            <div class="notification prompt hidden">
+                <header>
+                    <div style="display: none" class="notification-icon"></div>
+                    <h3>
+                        <strong class="notification-name"></strong>
+                    </h3>
+                    <p class="notification-description"></p>
+                </header>
+                <div class="prompt-chevron icon"></div>
+                <menu>
+                    <button data-action="dismiss">Dismiss</button>
+                    <button data-action="complete">Confirm</button>
+                </menu>
+            </div>
+        </template>
+
+        <template id="notification-template">
+            <div class="notification hidden">
+                <header>
+                    <div style="display: none" class="notification-icon"></div>
+                    <h3>
+                        <strong class="notification-name"></strong>
+                    </h3>
+                    <p class="notification-description"></p>
+                </header>
+            </div>
+        </template>
+
+        <template id="installed-app-template">
+            <div class="installed-app hidden">
+                <div class="icon"></div>
+            </div>
+        </template>
+
+        <template id="time-display-template">
+            <span class="time-display">
+                <time></time>
+                <span class="display"></span>
+            </span>
+        </template>
+        <script src="views.js"></script>
+        <script src="game.js"></script>
+    </body>
+</html>

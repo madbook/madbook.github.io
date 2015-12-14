@@ -1,0 +1,323 @@
+* {
+    box-sizing: border-box;
+    line-height: 1.5em;
+}
+
+:first-child {
+    margin-top: 0;
+}
+
+:last-child {
+    margin-bottom: 0;
+}
+
+html,
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: large;
+}
+
+body {
+    background-color: #000;
+    font-family: 'SanFrancisco', 'Roboto', 'Helvetica Neue', sans-serif;
+    color: #3E2723;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+main {
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+    transition: background-color 2s;
+    background-color: #263238;
+}
+
+.screen {
+    position: absolute;
+    border-radius: 1px;
+    color: #FFEBEE;
+    font-weight: bold;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-height: 100%;
+    opacity: 1;
+    translate: transform(0, 0);
+}
+
+.system-idle {
+    opacity: 0.6;
+}
+
+.screen > header {
+    padding: 2rem 2rem 1rem;
+    display: flex;
+    flex-direction: column-reverse;
+    font-size: 1.5em;
+}
+
+.screen > header > h2 {
+    margin-bottom: 0;
+    text-align: center;
+    font-size: 1em;
+    margin: 0;
+    line-height: 1.5em;
+    font-weight: 200;
+}
+
+.screen > header > .time-display {
+    text-align: center;
+    display: block;
+}
+
+.screen > header > .time-display .display {
+    display: none;
+}
+
+.time-display time {
+    font-weight: 100;
+    font-size: 3em;
+}
+
+.time-display span {
+    font-weight: 100;
+    font-size: 1.5em;
+}
+
+.screen.active {
+    z-index: 2;
+}
+
+.screen.hidden {
+    opacity: 0;
+}
+
+.screen:not(.active) {
+    z-index: 1;
+}
+
+.fade-out {
+    animation: fade-out 0.5s forwards;
+}
+
+@keyframes fade-out {
+    0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(0, -100%) scale(0.8);
+    }
+}
+
+.fade-in {
+    animation: fade-in 0.5s forwards;
+}
+
+@keyframes fade-in {
+    0% {
+        opacity: 0;
+        transform: translate(0, 100%) scale(0.8);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+    }
+}
+
+.slide-down {
+    animation: slide-down 0.5s forwards;
+    transition: height 0.5s;
+    height: 0px;
+}
+
+@keyframes slide-down {
+    0% {
+        opacity: 0.5;
+        transform: scaleY(0);
+    }
+    100% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+.slide-up {
+    animation: slide-up 0.5s forwards;
+    transition: height 0.5s;
+    /* works as long as el has height explicitly defined on the element. */
+    height: 0 !important;
+}
+
+@keyframes slide-up {
+    0% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+    100% {
+        opacity: 0.5;
+        transform: scaleY(0);
+    }
+}
+
+.notification {
+    background-color: rgba(0, 0, 0, 0.4);
+    transform-origin: top center;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto;
+    max-width: 600px;
+}
+
+.notification header {
+    padding: 0.5rem;
+    flex: 1 1;
+    margin-left: 0;
+    transition: margin-left 0.2s;
+}
+
+.notification.expanded header {
+    margin-left: -100%;
+}
+
+.notification h3 {
+    margin: 0;
+    line-height: 1.25em;
+}
+
+.notification-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.notification .time-display {
+    font-weight: 200;
+    font-size: 0.25rem;
+}
+
+.notification-description {
+    font-size: 0.75rem;
+    font-weight: 300;
+    margin-top: 0;
+}
+
+.notification menu {
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-basis: calc(100% - 30px);
+    margin-right: calc(-100% + 30px);
+    transition: margin-right 0.2s;
+}
+
+.notification.expanded menu {
+    margin-right: 0;
+}
+
+.icon,
+.notification-icon {
+    background-size: 100%;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.installed-app-icons {
+    text-align: center;
+    padding-bottom: 0.5rem;
+}
+
+.installed-app {
+    display: inline-block;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 5px;
+    margin: 0 0.25rem;
+}
+
+.installed-app .icon {
+    width: 25px;
+    height: 25px;
+}
+
+
+.notification-icon {
+    width: 50px;
+    min-height: 50px;
+/*     display: inline-block; */
+}
+
+.notification button {
+    background-color: black;
+    border: 0;
+    color: white;
+    /* border-radius: 3px; */
+    flex: 0 0 1.5rem;
+    line-height: 1em;
+    text-align: center;
+    outline: none;
+    flex: 1 1 50%;
+    margin: 0.25rem;
+    margin-left: 0;
+    font-size: 0.75em;
+    border-radius: 2px;
+}
+
+.notification button[data-action=complete] {
+    order: 2;
+}
+
+
+.notification button[data-action=complete] {
+    background-color: #8BC34A;
+}
+
+.notification button[data-action=dismiss] {
+    background-color: #FF5722;
+}
+
+.prompt-chevron {
+    flex: 0 0 30px;
+    opacity: 0.5;
+    background-image: url(chevron.png);
+    transform: scaleX(-1);
+}
+
+.expanded .prompt-chevron {
+    transform: scaleX(1);
+}
+
+#home-screen {height: 100%;}
+
+#home-screen > header {
+    flex-direction: column;
+    text-align: center;
+    align-items: center;
+}
+
+#home-screen h1 {
+    font-weight: 100;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+.notification .notification-icon {
+    float: left;
+    margin-right: 0.5rem;
+}
+
+#home-screen .notification-icon {
+    margin: 2rem 0;
+}
